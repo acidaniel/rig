@@ -35,8 +35,18 @@
 			"Rev": "1efa31f08b9333f1bd4882d61f9d668a70cd902e"
 		},
 		{
+			"ImportPath": "github.com/vbauerster/mpb/cwriter",
+			"Comment": "v2.1.0-5-gc2f3f0f",
+			"Rev": "c2f3f0fc9d7a2c963a7804d228f99717e5406372"
+		},
+		{
 			"ImportPath": "golang.org/x/sys/unix",
 			"Rev": "eb2c74142fd19a79b3f237334c7384d5167b1b46"
+		},
+		{
+			"ImportPath": "gopkg.in/vbauerster/mpb.v2",
+			"Comment": "v2.1.0",
+			"Rev": "194b772f61cb8d42df7530f2d9bc64af8d38aee8"
 		},
 		{
 			"ImportPath": "gopkg.in/yaml.v2",

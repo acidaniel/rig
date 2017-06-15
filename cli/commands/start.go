@@ -6,6 +6,7 @@ import (
 
 	"github.com/phase2/rig/cli/util"
 	"github.com/urfave/cli"
+        "gopkg.in/vbauerster/mpb.v2"
 )
 
 type Start struct {
@@ -52,16 +53,26 @@ func (cmd *Start) Commands() []cli.Command {
 }
 
 func (cmd *Start) Run(c *cli.Context) error {
+				name := "Starting: "
+        progress := mpb.New()
+        bar := progress.AddBar(100).
+					PrependName(name, len(name), 0).
+					// Prepend Percentage decorator and sync width
+					PrependPercentage(3, mpb.DwidthSync|mpb.DextraSpace).
+					// Append ETA and don't sync width
+					AppendETA(2, 0)
+
+
 	cmd.out.Info.Printf("Starting '%s'", cmd.machine.Name)
 	cmd.out.Verbose.Println("Pre-flight check...")
 
 	if err := exec.Command("grep", "-qE", "'^\"?/Users/'", "/etc/exports").Run(); err == nil {
 		cmd.out.Error.Fatal("Vagrant NFS mount found. Please remove any non-Outrigger mounts that begin with /Users from your /etc/exports file")
 	}
-
+bar.Incr(5)
 	cmd.out.Verbose.Println("Resetting Docker environment variables...")
 	cmd.machine.UnsetEnv()
-
+bar.Incr(5)
 	// Does the docker-machine exist
 	if !cmd.machine.Exists() {
 		cmd.out.Warning.Printf("No machine named '%s' exists", cmd.machine.Name)
@@ -74,23 +85,25 @@ func (cmd *Start) Run(c *cli.Context) error {
 	}
 
 	cmd.machine.Start()
-
+bar.Incr(35)
 	cmd.out.Verbose.Println("Configuring the local Docker environment")
 	cmd.machine.SetEnv()
 
 	cmd.out.Info.Println("Setting up DNS...")
 	dns := Dns{BaseCommand{machine: cmd.machine, out: cmd.out}}
 	dns.ConfigureDns(cmd.machine, c.String("nameservers"))
+bar.Incr(5)
 
 	cmd.out.Verbose.Println("Enabling NFS file sharing")
 	if nfsErr := util.StreamCommand(exec.Command("docker-machine-nfs", cmd.machine.Name)); nfsErr != nil {
 		cmd.out.Error.Printf("Error enabling NFS: %s", nfsErr)
 	}
 	cmd.out.Verbose.Println("NFS is ready to use")
+bar.Incr(10)
 
 	// NFS enabling may have caused a machine restart, wait for it to be available before proceeding
 	cmd.machine.WaitForDev()
-
+bar.Incr(10)
 	cmd.out.Verbose.Println("Setting up persistent /data volume...")
 	dataMountSetup := `if [ ! -d /mnt/sda1/data ];
     then echo '===> Creating /mnt/sda1/data directory';
@@ -106,15 +119,17 @@ func (cmd *Start) Run(c *cli.Context) error {
     then echo '===> Creating symlink from /data to /mnt/sda1/data';
     sudo ln -s /mnt/sda1/data /data;
   fi;`
+bar.Incr(10)
 	util.StreamCommand(exec.Command("docker-machine", "ssh", cmd.machine.Name, dataMountSetup))
-
+bar.Incr(5)
 	dns.ConfigureRoutes(cmd.machine)
-
+bar.Incr(5)
 	cmd.out.Verbose.Println("Launching Dashboard...")
 	dash := Dashboard{BaseCommand{machine: cmd.machine, out: cmd.out}}
 	dash.LaunchDashboard(cmd.machine)
-
+bar.Incr(5)
 	cmd.out.Info.Println("Outrigger is ready to use")
 
+        progress.Stop()
 	return nil
 }
